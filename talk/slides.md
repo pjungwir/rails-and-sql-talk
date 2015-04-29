@@ -12,6 +12,24 @@ May 2015
 TODO
 ====
 
+- Interesting things you can do in SQL.
+  - With Postgres.
+  - Inside Rails.
+
+
+
+Inspections Schema
+==================
+
+
+    restaurants --< inspections --< violations
+    -----------     -----------     ----------
+    name            score           name
+                    inspected_at
+
+Courtesy of Robb Schecter at eaternet.io.
+
+
 
 SQL overview
 ============
@@ -145,6 +163,20 @@ end
 Extra attributes with select
 ============================
 
+    @@@ruby
+    class Restaurant
+      # . . .
+      def inspections_with_violation_counts
+        inspections.
+          select("inspections.*").
+          select("COUNT(violations.id) AS violations_count").
+          joins(<<-EOQ).
+            LEFT OUTER JOIN violations
+            ON violations.inspection_id = inspections.id
+          EOQ
+          group("inspections.id")
+      end 
+    end
 
 
 - why use ActiveRecord at all?
@@ -153,8 +185,52 @@ Extra attributes with select
   - compat, e.g. will_paginate
 
 
-Almost-Raw SQL
-==============
+Raw SQL
+=======
+
+    @@@ruby
+    connection.select_rows("SELECT a, b FROM bar")
+    # [["1","2"], ["4","5"]]
+
+    connection.select_all("SELECT a, b FROM bar")
+    # #<ActiveRecord::Result:0x007ff34710a5f8>
+
+    connection.select_all("SELECT a, b, c FROM bar").to_a
+    # [{"a"=>"1", "b"=>"2"}, {"a"=>"4","b"=>"5"}]
+
+- Or `ActiveRecord::Base.connection` outside models and migrations.
+- Everything is a string.
+
+Raw SQL 2
+=========
+
+    @@@ruby
+    connection.select_values("SELECT a FROM bar")
+    # ["1", "4"]
+
+    connection.select_value("SELECT a FROM bar")
+    # ["1"]
+
+    connection.select_one("SELECT a FROM bar")
+    # {"id"=>"1"}
+
+
+Raw SQL quoting
+===============
+
+    @@@ruby
+    connection.select_rows <<-EOQ
+      SELECT  foo
+      FROM    bar
+      WHERE   baz = '#{connection.quote_string(raz)}'
+    EOQ
+
+- No `?` parameters like in `where`.
+- Use `quote_string` to avoid SQLi.
+
+
+Raw SQL to Models
+=================
 
     @@@ruby
     def 
@@ -166,49 +242,225 @@ Almost-Raw SQL
     end
 
 - SQL Injection?!
-  - find_by_sql, execute, select_*, joins: no ? params
+  - `find_by_sql`, `execute`, `select_*`, `joins`: no `?` params
   - Always know from reading only the method body that it's safe.
-  - to_i is safe
+  - `to_i` is safe
 
-Raw SQL
-=======
 
-    TODO: check these
 
-    @@@ruby
-    connection.select_rows("SELECT a, b, c FROM bar")
-    >>> [{a:1,b:2,c:3}, {d:4,d:5,d:6}]
-
-    connection.select_values("SELECT a FROM bar")
-    connection.select_value("SELECT a FROM bar")
-    connection.select_one("SELECT a FROM bar")
-
-- Or `ActiveRecord::Base.connection` outside models and migrations.
-
-Raw SQL quoting
-===============
-
-TODO: sure it's quote_string?:
+Simple `scope`
+==============
 
     @@@ruby
-    ActiveRecord::Base.connection.select_rows <<-EOQ
-      SELECT  foo
-      FROM    bar
-      WHERE   blorch = '#{ActiveRecord::Base.connection.quote_string(blech)}'
+    class Inspection
+
+      scope :passing, where("score > 80")
+
+      scope :between, -> {|start_day, end_day|
+        where("inspected_at BETWEEN ? AND ?", start_day, end_day)
+      }
+
+    end
+
+- static or dynamic
+- composable
+
+
+Correlated Subqueries
+=====================
+
+All restaurants with no inspections yet:
+
+    @@@sql
+    SELECT  *
+    FROM    restaurants r
+    WHERE   NOT EXISTS (SELECT  1
+                        FROM    inspections i
+                        WHERE   i.restaurant_id = r.id)
+
+- Less constraining than a join.
+
+
+
+Subqueries with `scope`
+=======================
+
+    @@@ruby
+    scope :without_inspection, where(<<-EOQ)
+      NOT EXISTS (SELECT  1
+                  FROM    inspections i
+                  WHERE   i.restaurant_id = restaurants.id)
     EOQ
 
-- No `?` parameters like in `where`.
-- Use `quote_string` to avoid SQLi.
+
+TODO: with merge instead?
+
+
+
+Time Series with naive GROUP BY
+===============================
+
+- Count the inspections in each month:
+
+    @@@sql
+    SELECT  EXTRACT('MONTH' FROM inspected_at) m,
+            COUNT(*)
+    FROM    inspections
+    GROUP BY m
+    ORDER BY m
+
+- Excludes months with zero inspections!
+
 
 Time Series with generate_series
 ================================
 
     @@@sql
-    SELECT  
+    SELECT  s.m + 1 AS month,
+            COUNT(id)
+    FROM    generate_series(0, 11) s(m)
+    LEFT OUTER JOIN inspections
+    ON      inspected_at
+            BETWEEN '2015-01-01'::date + (s.m || ' MONTHS')::interval
+            AND     '2015-01-01'::date + ((s.m + 1) || ' MONTHS')::interval
+    GROUP BY s.m
+    ORDER BY s.m
 
 
-- ActiveRecord from
+generate_series in `from`
+=========================
 
+    @@@ruby
+    class Restaurant
+      def inspections_per_month(year)
+        Inspection.
+          select("s.m + 1 AS inspection_month").
+          select("COUNT(inspections.id) AS inspections_count").
+          from("generate_series(0, 11) s(m)").
+          joins(<<-EOQ).
+            LEFT OUTER JOIN inspections
+            ON  inspections.inspected_at
+                BETWEEN '#{year.to_i}-01-01'::date + (s.m || ' MONTHS')::interval
+                AND     '#{year.to_i}-01-01'::date + ((s.m + 1) || ' MONTHS')::interval
+            AND inspections.restaurant_id = #{id.to_i}
+          EOQ
+          group("inspection_month").
+          order("inspection_month")
+      end
+    end
+
+- Later we can clean this up with a CTE.
+
+
+    TODO: Same thing but with find_by_sql?
+
+
+
+generate_series CTE
+===================
+
+    @@@sql
+    WITH t(month) AS (
+      SELECT  '2015-01-01'::date +
+                (s.m || ' MONTHS')::interval
+      FROM    generate_series(0, 11) s(m)
+    )
+    SELECT  t.month,
+            COALESCE(sum(id), 0)
+    FROM    t
+    LEFT OUTER JOIN inspections
+    ON      inspected_at BETWEEN month AND month + INTERVAL '1 MONTH'
+    GROUP BY month
+    ORDER BY month
+
+
+
+generate_series in `with`
+=========================
+
+- Can't use `WITH` in ActiveRecord.
+- Use the postgres_ext gem.
+
+    @@@ruby
+    class Restaurant
+      def inspections_per_month
+        Inspection.
+          with("t(month)" => <<-EOQ).
+            SELECT  '2015-01-01'::date +
+                      (s.m || ' MONTHS')::interval
+            FROM    generate_series(0, 11) s(m)
+          EOQ
+          select("t.month").
+          select("COUNT(inspections.id) AS inspections_count").
+          from("t").
+          joins(<<-EOQ).
+            LEFT OUTER JOIN inspections
+            ON  inspections.inspected_at
+                BETWEEN t.month AND t.month + INTERVAL '1 MONTH'
+            AND inspections.restaurant_id = #{id.to_i}
+          EOQ
+          group("t.month").
+          order("t.month")
+      end
+    end
+
+
+
+Score of most recent inspection
+===============================
+
+- Get the list of restaurants.
+- Include the score of the *just one* inspection.
+- Avoid n+1 queries
+- Include restaurants with no inspections yet.
+
+
+
+Grouping and aggregates
+=======================
+
+Define a `FIRST` aggregate function:
+
+    @@@ruby
+    def up
+      # https://wiki.postgresql.org/wiki/First/last_%28aggregate%29
+
+      connection.execute <<-EOQ
+        CREATE OR REPLACE FUNCTION public.first_agg ( anyelement, anyelement )
+        RETURNS anyelement LANGUAGE sql IMMUTABLE STRICT AS $$
+        SELECT $1;
+        $$;
+      EOQ
+
+      connection.execute <<-EOQ
+        CREATE AGGREGATE public.first (
+          sfunc    = public.first_agg,
+          basetype = anyelement,
+          stype    = anyelement
+        );
+      EOQ
+    end
+
+
+Grouping and aggregates
+=======================
+
+    @@@ruby
+    scope :with_latest_score, -> {
+      select("restaurants.*").
+        select(<<-EOQ).
+          FIRST(inspections.score ORDER BY inspections.inspected_at DESC) AS latest_score
+        EOQ
+        joins(<<-EOQ).
+          LEFT OUTER JOIN inspections
+          ON inspections.restaurant_id = restaurants.id
+        EOQ
+        group("restaurants.id")
+    }
+
+- Any aggregate function permits `ORDER BY`.
+- Forces a join and grouping: less composable.
+- Grouping by `id` lets you select everything else.
 
 
 More
@@ -223,6 +475,18 @@ More
 - using a CTE in rails
 
 - using a window function in rails
+
+- lateral joins
+
++ correlated sub-query
+
++ scopes
+
+- merge
+
+- insert into returning
+
+- pluck most recent score
 
 
 Rails Migration Traps

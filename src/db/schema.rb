@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20150425225018) do
+ActiveRecord::Schema.define(version: 20150428112115) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -41,6 +41,6 @@ ActiveRecord::Schema.define(version: 20150425225018) do
 
   add_index "violations", ["inspection_id"], name: "index_violations_on_inspection_id", using: :btree
 
-  add_foreign_key "inspections", "restaurants"
-  add_foreign_key "violations", "inspections"
+  add_foreign_key "inspections", "restaurants", on_delete: :cascade
+  add_foreign_key "violations", "inspections", on_delete: :cascade
 end

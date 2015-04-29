@@ -7,20 +7,27 @@ describe Restaurant do
   end
 
 
-
-  context 'when summarizing' do
+  context 'with inspections' do
 
     before do
-      @restaurant = Restaurant.create!(name: "Bob's Diner")
-      @restaurant.inspections.create!(score: 100, inspected_at: Time.zone.now - 7.days)
-      @restaurant.inspections.create!(score: 100, inspected_at: Time.zone.now - 14.days)
-      @restaurant.inspections.create!(score: 100, inspected_at: Time.zone.now - 80.days)
+      @bobs = Restaurant.create!(name: "Bob's Diner")
+      @bobs.inspections.create!(score: 77, inspected_at: '2015-01-07')
+      @bobs.inspections.create!(score: 71, inspected_at: '2015-01-15')
+      @bobs.inspections.create!(score: 75, inspected_at: '2015-03-15')
+      @joes = Restaurant.create!(name: "Joe's Place")
+    end
+
+
+    it 'finds places with no inspections' do
+      @uninspected = Restaurant.without_inspection
+      expect(@uninspected.count).to eq 1
+      expect(@uninspected.first).to eq @joes
     end
 
 
 
     it 'counts inspections per month' do
-      @inspections = @restaurant.inspections_per_month
+      @inspections = @bobs.inspections_per_month(2015)
       @table = @inspections.map{|insp| [insp.inspection_month, insp.inspections_count]}
 
       # Months with zero inspections are included:
@@ -30,16 +37,26 @@ describe Restaurant do
 
 
     it 'counts violations per inspection' do
-      @restaurant.inspections[0].violations.create!(name: "Rats")
-      @restaurant.inspections[1].violations.create!(name: "Rats")
-      @restaurant.inspections[1].violations.create!(name: "Zombies")
+      @bobs.inspections[0].violations.create!(name: "Rats")
+      @bobs.inspections[1].violations.create!(name: "Rats")
+      @bobs.inspections[1].violations.create!(name: "Zombies")
 
-      @inspections = @restaurant.inspections_with_violation_counts.
+      @inspections = @bobs.inspections_with_violation_counts.
                        reorder(inspected_at: :desc)   # composable b/c still an ActiveRecord::Relation
 
       expect(@inspections[0].violations_count).to eq 0
       expect(@inspections[1].violations_count).to eq 2
       expect(@inspections[2].violations_count).to eq 1
+    end
+
+
+
+    it 'includes most recent score' do
+      @table = Restaurant.with_latest_score.order(:name)
+      expect(@table[0].name).to eq("Bob's Diner")
+      expect(@table[0].latest_score).to eq 75
+      expect(@table[1].name).to eq("Joe's Place")
+      expect(@table[1].latest_score).to eq nil
     end
 
 

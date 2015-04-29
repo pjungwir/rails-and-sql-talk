@@ -11,7 +11,7 @@ class CreateRestaurants < ActiveRecord::Migration
       t.date :inspected_at, null: false
       t.timestamps null: false
     end
-    add_foreign_key :inspections, :restaurants, options: "ON DELETE CASCADE"
+    add_foreign_key :inspections, :restaurants, on_delete: :cascade
     add_index :inspections, [:restaurant_id, :inspected_at]
 
     create_table :violations do |t|
@@ -19,7 +19,7 @@ class CreateRestaurants < ActiveRecord::Migration
       t.string :name
       t.timestamps null: false
     end
-    add_foreign_key :violations, :inspections, options: "ON DELETE CASCADE"
+    add_foreign_key :violations, :inspections, on_delete: :cascade
     add_index :violations, :inspection_id
   end
 end
