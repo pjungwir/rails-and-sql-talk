@@ -26,6 +26,12 @@ class Restaurant < ActiveRecord::Base
 
 
 
+  scope :with_a_perfect_score, -> {
+    joins(:inspections).merge(Inspection.perfect)
+  }
+
+
+
   # Use `select` to add computed attributes to your model.
   def inspections_with_violation_counts
     inspections.

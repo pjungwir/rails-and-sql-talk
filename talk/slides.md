@@ -31,31 +31,52 @@ Courtesy of Robb Schecter at eaternet.io.
 
 
 
-SQL overview
-============
+SQL: Easy Stuff
+===============
 
-SELECT a FROM b WHERE c
-SELECT a FROM b WHERE c GROUP BY d HAVING e
+    @@@sql
+    SELECT  *
+    FROM    inspections
+    WHERE   score > 80
+    ORDER BY inspected_at DESC
+
+    @@@sql
+    SELECT  date_trunc('month', inspected_at) AS m,
+            MAX(score) AS winner
+    FROM    inspections
+    GROUP BY m
+    HAVING  MAX(score) > 90
+    ORDER BY m
 
 
-ActiveRecord overview
-=====================
+
+ActiveRecord: Easy Stuff
+========================
 
     @@@ruby
-    @users = User.where(is_admin: true).
-                  order(created_at: :desc)
+    @inspections = Inspection.where("score > 80").
+                              order(inspected_at: :desc)
+
+    @violations = @inspection.violations.where(name: "Rats")
+
 
 
 ActiveRecord where
 ==================
 
     @@@ruby
-    User.where(level: 5)
-    User.where("level = ?", 5)
+    Inspection.where(score: 90)
+    Inspection.where("score > ?", 90)
+    Inspection.where("inspections.score > ?", 90)
+
+    Restaurant.where(name: "This is safe")
+    Restaurant.where("name = ?", "Still safe")
+    Restaurant.where("name = '#{oops}'")
 
 
-SQL inner vs outer join
-=======================
+
+SQL joins: INNER vs OUTER
+=========================
 
     @@@sql
     SELECT  *
@@ -144,7 +165,7 @@ ActiveRecord includes
     @restaurants = Restaurant.includes(:inspections).
                             # where("inspections.score > ?", 80)
   
-produces either:
+might produce:
 
     @@@sql
     SELECT  *
@@ -153,11 +174,10 @@ produces either:
     ON      inspections.restaurant_id = restaurants.id
     WHERE   
 
-    - also avoids the "n+1" problem
+- But don't depend on it!
+- Sometimes runs a second query.
+- Either way avoids the "n+1" problem.
 
-class User
-  
-end
 
 
 Extra attributes with select
@@ -293,7 +313,24 @@ Subqueries with `scope`
     EOQ
 
 
-TODO: with merge instead?
+
+Merging scopes
+==============
+
+    @@@ruby
+    class Inspection
+      scope :perfect, -> { where(score: 100) }
+    end
+
+    class Restaurant
+      scope :with_a_perfect_score, -> {
+        joins(:inspections).merge(Inspection.perfect)
+      }
+    end
+
+- Lets you compose scopes from other models.
+- Could have been an `EXISTS` to avoid the join.
+- Which is more flexible?
 
 
 
@@ -482,7 +519,7 @@ More
 
 + scopes
 
-- merge
++ merge
 
 - insert into returning
 

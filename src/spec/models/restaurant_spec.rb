@@ -60,6 +60,16 @@ describe Restaurant do
     end
 
 
+
+    it 'finds places with a perfect score' do
+      @crystal = Restaurant.create!(name: "Crystal Palace")
+      @crystal.inspections.create!(score: 100, inspected_at: '2015-01-07')
+      @clean = Restaurant.with_a_perfect_score
+      expect(@clean.size).to eq 1
+      expect(@clean.first).to eq @crystal
+    end
+
+
   end
 
 end
