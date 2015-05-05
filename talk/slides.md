@@ -22,6 +22,10 @@ Plan
   - With Postgres (sometimes portable).
   - Inside Rails.
 
+- Follow along:
+
+  https://github.com/pjungwir/rails-and-sql-talk
+
 [//]: # (I'll start with beginner stuff, quickly get into advanced stuff.)
 [//]: # (Sorry, no Arel!)
 [//]: # (First I'll show the SQL.)
