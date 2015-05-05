@@ -881,4 +881,8 @@ Read More:
 - CTEs: http://www.postgresql.org/docs/9.4/static/queries-with.html
 - Window Functions: http://www.postgresql.org/docs/9.4/static/tutorial-window.html
 
+This talk:
+
+- https://github.com/pjungwir/rails-and-sql-talk
+
 
