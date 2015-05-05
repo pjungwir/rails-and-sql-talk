@@ -24,6 +24,22 @@ class Restaurant < ActiveRecord::Base
       group("restaurants.id")
   }
 
+  scope :with_latest_score_lateral_join, -> {
+    select('restaurants.*').
+      select("latest.inspected_at AS latest_inspected_at").
+      select("latest.score AS latest_score").
+      joins(<<-EOQ)
+        LEFT OUTER JOIN LATERAL (
+          SELECT  *
+          FROM    inspections i
+          WHERE   i.restaurant_id = restaurants.id
+          ORDER BY i.inspected_at DESC
+          LIMIT 1
+        ) latest
+        ON true
+      EOQ
+  }
+
 
 
   scope :with_a_perfect_score, -> {

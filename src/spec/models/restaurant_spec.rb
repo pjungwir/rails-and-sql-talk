@@ -61,6 +61,16 @@ describe Restaurant do
 
 
 
+    it 'includes most recent score via lateral join' do
+      @table = Restaurant.with_latest_score_lateral_join.order("latest.score DESC NULLS LAST")
+      expect(@table[0].name).to eq("Bob's Diner")
+      expect(@table[0].latest_score).to eq 75
+      expect(@table[1].name).to eq("Joe's Place")
+      expect(@table[1].latest_score).to eq nil
+    end
+
+
+
     it 'finds places with a perfect score' do
       @crystal = Restaurant.create!(name: "Crystal Palace")
       @crystal.inspections.create!(score: 100, inspected_at: '2015-01-07')
