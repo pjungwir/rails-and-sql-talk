@@ -5,5 +5,5 @@ and a sample Rails app with RSpec tests to make sure I wasn't lying (in `src`).
 
 You can find the slides pre-built here:
 
-http://illuminatedcomputing.com/talks/tails-and-sql/
+http://illuminatedcomputing.com/talks/rails-and-sql/
 
