@@ -7,3 +7,8 @@ You can find the slides pre-built here:
 
 http://illuminatedcomputing.com/talks/rails-and-sql/
 
+and the video here:
+
+https://www.youtube.com/watch?v=Cgg3ylFASYk
+
+
